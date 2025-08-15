@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Persona LLM · Hitesh & Piyush Tones</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark">
+  <div class="app">
+    <!-- LEFT -->
+    <aside class="panel sidebar">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <div style="font-weight:700">Persona Studio</div>
+          <div style="font-size:12px;color:#9aa3b2">LLM Tone Builder (UI + API)</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <h4>Theme</h4>
+        <button class="btn ghost" id="themeToggle">Switch to Light Mode</button>
+      </div>
+
+      <div class="group">
+        <h4>Persona Select</h4>
+        <div class="row">
+          <label><input type="radio" name="persona" value="hitesh" checked> Hitesh Tone</label>
+          <label><input type="radio" name="persona" value="piyush"> Piyush Tone</label>
+        </div>
+        <div style="font-size:12px;color:#9aa3b2;margin-top:8px">
+          Tone inspired by public content; not impersonation.
+        </div>
+      </div>
+
+      <div class="group">
+        <h4>Model & Params</h4>
+        <label>Model</label>
+        <select id="model">
+          <option value="gemini-2.0-flash" selected>gemini-1.5-pro</option>
+          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+        </select>
+        <div class="range">
+          <label>Temperature</label>
+          <input id="temperature" type="range" min="0" max="2" step="0.1" value="0.7" />
+        </div>
+        <div class="range">
+          <label>Max Tokens</label>
+          <input id="maxTokens" type="range" min="128" max="2048" step="64" value="512" />
+        </div>
+      </div>
+
+      <div class="group">
+        <h4>Reference Data (Optional)</h4>
+        <label>YouTube / X</label>
+        <textarea id="refs" placeholder="Paste public links for attribution or style cues..."></textarea>
+      </div>
+    </aside>
+
+    <!-- CENTER -->
+    <main class="panel chat" style="flex: 1;">
+      <div class="chat-header">
+        <div class="persona">
+          <div class="avatar" id="avatar">HC</div>
+          <div>
+            <div style="font-weight:700" id="personaName">Hitesh Tone</div>
+            <small class="meta">Friendly Hinglish • Actionable steps</small>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn ghost" id="newChat">New Chat</button>
+          <button class="btn" id="sendBtn">Generate</button>
+        </div>
+      </div>
+
+      <section class="messages" id="messages">
+        <div class="bubble from-ai">
+          <strong>Persona:</strong> Ready! Apna sawaal bhejo, main concise & actionable tone me guide karunga.
+          <div class="meta">System · now</div>
+        </div>
+      </section>
+
+      <div class="composer">
+        <div class="input">
+          <input id="userInput" placeholder="Type your prompt… e.g., ‘MERN + GenAI roadmap short’" />
+        </div>
+        <button class="btn" id="sendBtn2">Send</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const sendBtn2 = document.getElementById('sendBtn2');
+    const newChatBtn = document.getElementById('newChat');
+    const personaName = document.getElementById('personaName');
+    const avatar = document.getElementById('avatar');
+    const modelSel = document.getElementById('model');
+    const temperatureEl = document.getElementById('temperature');
+    const maxTokensEl = document.getElementById('maxTokens');
+    const themeToggle = document.getElementById('themeToggle');
+
+    // Theme toggle
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = document.body.getAttribute('data-theme');
+      if (currentTheme === 'dark') {
+        document.body.setAttribute('data-theme', 'light');
+        themeToggle.textContent = 'Switch to Dark Mode';
+      } else {
+        document.body.setAttribute('data-theme', 'dark');
+        themeToggle.textContent = 'Switch to Light Mode';
+      }
+    });
+
+    document.querySelectorAll('input[name="persona"]').forEach(r => {
+      r.addEventListener('change', () => {
+        if (r.checked) {
+          const who = r.value;
+          if (who === 'piyush') {
+            personaName.textContent = 'Piyush Tone';
+            avatar.textContent = 'PG';
+          } else {
+            personaName.textContent = 'Hitesh Tone';
+            avatar.textContent = 'HC';
+          }
+          messagesEl.innerHTML = '';
+          addBubble('New chat ready. Apna sawaal bhejo!', 'ai');
+        }
+      });
+    });
+
+    function addBubble(text, who='ai') {
+      const div = document.createElement('div');
+      div.className = `bubble ${who === 'user' ? 'from-user' : 'from-ai'}`;
+      div.innerHTML = text.replace(/\n/g, '<br>');
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = (who === 'user' ? 'You' : 'Persona') + ' · ' + new Date().toLocaleTimeString();
+      div.appendChild(meta);
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const userMessage = inputEl.value.trim();
+      if (!userMessage) return;
+      addBubble(userMessage, 'user');
+      inputEl.value = '';
+
+      const persona = document.querySelector('input[name="persona"]:checked')?.value || 'hitesh';
+      const temperature = Number(temperatureEl.value);
+      const maxTokens = Number(maxTokensEl.value);
+      const model = modelSel.value;
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ persona, userMessage, temperature, maxTokens, model })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          addBubble(data.text, 'ai');
+        } else {
+          addBubble('⚠️ ' + (data.error || 'Server error'), 'ai');
+        }
+      } catch (e) {
+        addBubble('⚠️ Network error: ' + e.message, 'ai');
+      }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    sendBtn2.addEventListener('click', sendMessage);
+    inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+    newChatBtn.addEventListener('click', () => {
+      messagesEl.innerHTML = '';
+      addBubble('New chat ready. Apna sawaal bhejo!', 'ai');
+    });
+  </script>
+</body>
+</html>
